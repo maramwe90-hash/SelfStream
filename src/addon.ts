@@ -525,15 +525,29 @@ app.get('/proxy/hls/manifest.m3u8', async (req: any, res: any) => {
                 const result = ['#EXTM3U'];
                 for (const tag of otherTags) result.push(tag);
 
-                // Rewrite media lines (audio/subs)
-                for (const ml of mediaLines) {
-                    const rewritten = ml.replace(/URI="([^"]+)"/, (_match: string, uri: string) => {
-                        const absUri = resolveUrl(upstream, uri);
-                        const segToken = makeProxyToken(absUri, headers);
-                        return `URI="${addonBase}/proxy/hls/manifest.m3u8?token=${segToken}"`;
-                    });
-                    result.push(rewritten);
-                }
+                // Rewrite media lines (audio/subs) — English only, filter out other languages
+for (const ml of mediaLines) {
+    // Skip non-English audio tracks
+    if (ml.includes('TYPE=AUDIO')) {
+        const langMatch = ml.match(/LANGUAGE="([^"]+)"/i);
+        if (langMatch) {
+            const trackLang = langMatch[1].toLowerCase();
+            // Keep only English audio
+            if (!trackLang.startsWith('en')) {
+                console.log(`[HLS Proxy] Filtered out audio track: ${langMatch[1]}`);
+                continue; // skip this track
+            }
+        }
+    }
+
+    const rewritten = ml.replace(/URI="([^"]+)"/, (_match: string, uri: string) => {
+        const absUri = resolveUrl(upstream, uri);
+        const segToken = makeProxyToken(absUri, headers);
+        return `URI="${addonBase}/proxy/hls/manifest.m3u8?token=${segToken}"`;
+    });
+    result.push(rewritten);
+}
+                
 
                 // Add the best variant
                 const bestToken = makeProxyToken(best.url, headers);
